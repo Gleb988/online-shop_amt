@@ -3,6 +3,7 @@ package transport
 import (
 	"errors"
 
+	"github.com/Gleb988/online-shop_amt/internal/models"
 	"github.com/rabbitmq/amqp091-go"
 )
 
@@ -12,21 +13,7 @@ type MQQueue struct {
 	DLQName   string
 }
 
-type QueueConfig struct {
-	QName      string
-	DLQName    string
-	Durable    bool
-	AutoDelete bool
-	Exclusive  bool
-	NoWait     bool
-}
-type ChannelQoS struct {
-	PrefetchCount int
-	PrefetchSize  int
-	Global        bool
-}
-
-func NewMQQueue(t *MQTransport, c QueueConfig, q ChannelQoS) (*MQQueue, error) {
+func NewMQQueue(t *MQTransport, c models.QueueConfig, q models.ChannelQoS) (*MQQueue, error) {
 	_, err := t.ch.QueueDeclare(c.DLQName, c.Durable, c.AutoDelete, c.Exclusive, c.NoWait, nil)
 	if err != nil {
 		// залогировать
