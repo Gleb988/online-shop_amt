@@ -2,68 +2,43 @@ package configuration
 
 import (
 	"errors"
+	"os"
 )
 
 type AMTConfig struct {
-	MQ struct {
-		Transport struct {
-			DSN string
-		}
-		Queue struct {
-			Name       string
-			DLQName    string
-			Durable    bool
-			AutoDelete bool
-			Exclusive  bool
-			NoWait     bool
-		}
-		QoS struct {
-			PrefetchCount int
-			PrefetchSize  int
-			Global        bool
-		}
-		Consume struct {
-		}
-		Rublish struct {
-		}
+	Transport struct {
+		DSN string
 	}
-	AMT struct {
-		MessageProcessTimeout int
-		MessageWorkers        int
+	Queue struct {
+		Name string
+	}
+	QoS struct {
+		PrefetchCount int
 	}
 }
 
 // single structure with all parameters
-func LoadConfig() (AMTConfig, error) {
+func LoadConfig(file string) (AMTConfig, error) {
 	cfg := AMTConfig{}
-
-	cfg.MQ.Transport.DSN = GetMQDSN("amqp://guest:guest@mq:5672/")
-
-	cfg.MQ.Queue.Name = GetMQQueueName("message")
-	cfg.MQ.Queue.DLQName = GetMQDLQName("messageDLQ")
-	cfg.MQ.Queue.Durable = GetMQQueueDurable(true)
-	cfg.MQ.Queue.AutoDelete = GetMQQueueAutodelete(false)
-	cfg.MQ.Queue.Exclusive = GetMQQueueExclusive(false)
-	cfg.MQ.Queue.NoWait = GetMQQueueNowait(false)
-
-	cfg.MQ.QoS.PrefetchCount = GetMQQoSPrefetchCount(1)
-	cfg.MQ.QoS.PrefetchSize = GetMQQoSPrefetchSize(0)
-	cfg.MQ.QoS.Global = GetMQQoSGlobal(false)
-
-	cfg.AMT.MessageProcessTimeout = GetMessageProcessTimeout(5)
-	cfg.AMT.MessageWorkers = GetMessageWorkers(1)
-
-	if cfg.MQ.QoS.PrefetchCount < 1 {
-		return AMTConfig{}, errors.New("MQ_QOS_PREFETCH_COUNT must be > 0")
+	if etcd := os.Getenv("ETCD_URL"); etcd != "" {
+		if file == "" {
+			return AMTConfig{}, errors.New("CONFIG_FILE must be given in Flow parameters")
+		}
+		if err := LoadEtcd(&cfg, etcd, file); err != nil {
+			return AMTConfig{}, errors.New("error during LoadEtcd: " + err.Error())
+		}
+	} else {
+		LoadEnv(&cfg)
 	}
-	if cfg.MQ.QoS.PrefetchSize < 0 {
-		return AMTConfig{}, errors.New("MQ_QOS_PREFETCH_SIZE must be >= 0")
+
+	if cfg.Transport.DSN == "" {
+		return AMTConfig{}, errors.New("AMT_TRANSPORT_DSN must be set")
 	}
-	if cfg.AMT.MessageProcessTimeout < 1 {
-		return AMTConfig{}, errors.New("AMT_MESSAGE_PROCESS_TIMEOUT must be > 0")
+	if cfg.Queue.Name == "" {
+		return AMTConfig{}, errors.New("AMT_QUEUE_NAME must be set")
 	}
-	if cfg.AMT.MessageWorkers < 1 {
-		return AMTConfig{}, errors.New("AMT_MESSAGE_WORKERS_QUANTITY must be > 0")
+	if cfg.QoS.PrefetchCount < 1 {
+		return AMTConfig{}, errors.New("AMT_QOS_PREFETCHCOUNT must be > 1")
 	}
 
 	return cfg, nil

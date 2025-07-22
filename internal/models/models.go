@@ -1,15 +1,17 @@
 package models
 
-type QueueConfig struct {
-	QName      string
-	DLQName    string
-	Durable    bool
-	AutoDelete bool
-	Exclusive  bool
-	NoWait     bool
-}
-type ChannelQoS struct {
-	PrefetchCount int
-	PrefetchSize  int
-	Global        bool
+type AMTConfig struct {
+	Transport struct {
+		DSN string
+	}
+	ExchangeConfig struct {
+		Name string
+	}
+	QueueConfig struct {
+		Name    string
+		Durable bool
+	}
+	ChannelQoS struct {
+		PrefetchCount int
+	}
 }

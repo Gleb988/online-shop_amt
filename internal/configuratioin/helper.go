@@ -1,125 +1,50 @@
 package configuration
 
 import (
+	"errors"
 	"os"
 	"strconv"
-	"strings"
 
-	"github.com/Gleb988/online-shop_amt/internal/models"
+	"github.com/spf13/viper"
 )
 
-func (c AMTConfig) ToQueueConfig() models.QueueConfig {
-	return models.QueueConfig{
-		QName:      c.MQ.Queue.Name,
-		DLQName:    c.MQ.Queue.DLQName,
-		Durable:    c.MQ.Queue.Durable,
-		AutoDelete: c.MQ.Queue.AutoDelete,
-		Exclusive:  c.MQ.Queue.Exclusive,
-		NoWait:     c.MQ.Queue.NoWait,
-	}
-}
-
-func (c AMTConfig) ToQoSCongif() models.ChannelQoS {
-	return models.ChannelQoS{
-		PrefetchCount: c.MQ.QoS.PrefetchCount,
-		PrefetchSize:  c.MQ.QoS.PrefetchSize,
-		Global:        c.MQ.QoS.Global,
-	}
-}
-
-// key: MQ_DSN
-func GetMQDSN(defaultDSN string) string {
-	dsn := os.Getenv("MQ_DSN")
-	if dsn == "" {
-		return defaultDSN
-	}
-	return dsn
-}
-
-// key: MQ_QUEUE_NAME
-func GetMQQueueName(defaultQueueName string) string {
-	name := os.Getenv("MQ_QUEUE_NAME")
-	if name == "" {
-		return defaultQueueName
-	}
-	return name
-}
-
-// key: MQ_QUEUE_DLQ_NAME
-func GetMQDLQName(defaultQueueName string) string {
-	name := os.Getenv("MQ_QUEUE_DLQ_NAME")
-	if name == "" {
-		return defaultQueueName
-	}
-	return name
-}
-
-// key: MQ_QUEUE_DURABLE
-func GetMQQueueDurable(dflt bool) bool {
-	state := os.Getenv("MQ_QUEUE_DURABLE")
-	return strings.TrimSpace(strings.ToLower(state)) == "true"
-}
-
-// key: MQ_QUEUE_AUTODELETE
-func GetMQQueueAutodelete(dflt bool) bool {
-	state := os.Getenv("MQ_QUEUE_AUTODELETE")
-	return strings.TrimSpace(strings.ToLower(state)) == "true"
-}
-
-// key: MQ_QUEUE_EXCLUSIVE
-func GetMQQueueExclusive(dflt bool) bool {
-	state := os.Getenv("MQ_QUEUE_EXCLUSIVE")
-	return strings.TrimSpace(strings.ToLower(state)) == "true"
-}
-
-// key: MQ_QUEUE_NOWAIT
-func GetMQQueueNowait(dflt bool) bool {
-	state := os.Getenv("MQ_QUEUE_NOWAIT")
-	return strings.TrimSpace(strings.ToLower(state)) == "true"
-}
-
-// key: MQ_QOS_PREFETCH_COUNT
-func GetMQQoSPrefetchCount(defaultQueueLength int) int {
-	lengthStr := os.Getenv("MQ_QOS_PREFETCH_COUNT")
-	length, err := strconv.Atoi(lengthStr)
+func LoadEnv(cfg *AMTConfig) {
+	(*cfg).Transport.DSN = os.Getenv("AMT_TRANSPORT_DSN")
+	(*cfg).Queue.Name = os.Getenv("AMT_QUEUE_NAME")
+	countstr := os.Getenv("AMT_QOS_PREFETCHCOUNT")
+	count, err := strconv.Atoi(countstr)
 	if err != nil {
-		return -1
+		(*cfg).QoS.PrefetchCount = 0
+		return
 	}
-	return length
+	(*cfg).QoS.PrefetchCount = count
 }
 
-// key: MQ_QOS_PREFETCH_SIZE
-func GetMQQoSPrefetchSize(dflt int) int {
-	strsize := os.Getenv("MQ_QOS_PREFETCH_SIZE")
-	size, err := strconv.Atoi(strsize)
+func LoadEtcd(cfg *AMTConfig, etcdURL, file string) error {
+	err := viper.AddRemoteProvider("etcd3", etcdURL, file)
 	if err != nil {
-		return -1
+		return errors.New("AddRemoteProvider error: " + err.Error())
 	}
-	return size
-}
-
-// key: MQ_QOS_GLOBAL
-func GetMQQoSGlobal(dflt bool) bool {
-	state := os.Getenv("MQ_QOS_GLOBAL")
-	return strings.TrimSpace(strings.ToLower(state)) == "true"
-}
-
-// key: AMT_MESSAGE_PROCESS_TIMEOUT
-func GetMessageProcessTimeout(defaultTimeout int) int {
-	timeoutStr := os.Getenv("AMT_MESSAGE_PROCESS_TIMEOUT")
-	timeout, err := strconv.Atoi(timeoutStr)
+	extension, err := findExtension(file)
 	if err != nil {
-		return 0
+		return err
 	}
-	return timeout
+	viper.SetConfigType(extension)
+	if err := viper.ReadRemoteConfig(); err != nil {
+		return errors.New("Error reading config file: " + err.Error())
+	}
+	// прочитать конфигурацию в структуру
+	(*cfg).Transport.DSN = viper.GetString("amt.transport.dsn")
+	(*cfg).Queue.Name = viper.GetString("amt.queue.name")
+	(*cfg).QoS.PrefetchCount = viper.GetInt("amt.qos.prefetchcount")
+	return nil
 }
 
-// key: AMT_MESSAGE_WORKERS_QUANTITY
-func GetMessageWorkers(defaultWorkers int) int {
-	quantityStr := os.Getenv("AMT_MESSAGE_WORKERS_QUANTITY")
-	quantity, err := strconv.Atoi(quantityStr)
-	if err != nil {
-		return 0
+func findExtension(file string) (string, error) {
+	for i := len(file) - 1; i >= 0; i-- {
+		if file[i] == '.' {
+			return string(file[i+1:]), nil
+		}
 	}
-	return quantity
+	return "", errors.New("no extension found in config file: ")
 }
