@@ -34,6 +34,8 @@ type Flow struct {
 	//timeout    time.Duration
 }
 
+var ErrNack = errors.New("invalid data, message is sent to DLQ")
+
 // В КОНФИГЕ НЕ БУДЕТ ЖЕСТКОЙ СВЯЗИ С etcd.
 // ЕСЛИ НЕ УКАЗАН URL ДЛЯ НЕГО, ТО ИСПОЛЬЗУЮТСЯ ENV
 // Переменная file = "", когда переменные из окружения (только для одного потока пока)
@@ -153,6 +155,10 @@ func (s *Flow) RunConsumer(ctx context.Context, workers int, timeout time.Durati
 				defer cancel()
 				err := s.App.ProcessMessage(ctx, msg.Body)
 				if err != nil {
+					if errors.Is(err, ErrNack) {
+						msg.Nack(false, false)
+						return
+					}
 					err := s.MQ.Retry(msg)
 					if err != nil {
 						errChan <- err
