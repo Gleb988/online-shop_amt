@@ -15,7 +15,7 @@ import (
 )
 
 type AppAPI interface {
-	ProcessMessage(context.Context, []byte) error
+	ProcessMessage(context.Context, amqp091.Delivery) error
 }
 
 type AMT interface {
@@ -153,7 +153,7 @@ func (s *Flow) RunConsumer(ctx context.Context, workers int, timeout time.Durati
 				}()
 				ctx, cancel := context.WithTimeout(ctx, timeout)
 				defer cancel()
-				err := s.App.ProcessMessage(ctx, msg.Body)
+				err := s.App.ProcessMessage(ctx, msg)
 				if err != nil {
 					if errors.Is(err, ErrNack) {
 						msg.Nack(false, false)
