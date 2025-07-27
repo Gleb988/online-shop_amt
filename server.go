@@ -9,8 +9,7 @@ import (
 	// КОНФИГ НУЖЕН, ПОТОМУ ЧТО ИНАЧЕ ПРИДЕТСЯ В ДВУХ МЕСТАХ ПРОПИСЫВАТЬ ВСЕ ПЕРЕМЕННЫЕ
 	// А ТАК ПРИ ЗАПУСКЕ СЕРВЕРА КОНФИГУРАЦИИ ВСЁ ЗАПУСТИЛ - И ОК
 	// ЛИБО ДАЖЕ ПОСЛЕ МОЖНО ДОБАВИТЬ КОНФИГ ФАЙЛЫ ДРУГИМИ НОВЫМИ СКРИПТАМИ
-	configuration "github.com/Gleb988/online-shop_amt/internal/configuratioin"
-	"github.com/Gleb988/online-shop_amt/internal/models"
+	"github.com/Gleb988/online-shop_amt/internal/configuration"
 	"github.com/Gleb988/online-shop_amt/internal/transport"
 	"github.com/rabbitmq/amqp091-go"
 )
@@ -35,7 +34,7 @@ type Flow struct {
 	//timeout    time.Duration
 }
 
-var ErrNack = models.ErrNack{Message: "AMT ErrNack! Do not send to retry queue"}
+var ErrNack = ErrNackType{Message: "AMT ErrNack! Do not send to retry queue"}
 
 // В КОНФИГЕ НЕ БУДЕТ ЖЕСТКОЙ СВЯЗИ С etcd.
 // ЕСЛИ НЕ УКАЗАН URL ДЛЯ НЕГО, ТО ИСПОЛЬЗУЮТСЯ ENV
