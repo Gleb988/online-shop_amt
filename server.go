@@ -34,7 +34,7 @@ type Flow struct {
 	//timeout    time.Duration
 }
 
-var ErrNack = ErrNackType{Message: "AMT ErrNack! Do not send to retry queue"}
+//var ErrNack = ErrNackType{Message: "AMT ErrNack! Do not send to retry queue"}
 
 // В КОНФИГЕ НЕ БУДЕТ ЖЕСТКОЙ СВЯЗИ С etcd.
 // ЕСЛИ НЕ УКАЗАН URL ДЛЯ НЕГО, ТО ИСПОЛЬЗУЮТСЯ ENV
@@ -155,7 +155,8 @@ func (s *Flow) RunConsumer(ctx context.Context, workers int, timeout time.Durati
 				defer cancel()
 				err := s.App.ProcessMessage(ctx, msg)
 				if err != nil {
-					if errors.Is(err, ErrNack) {
+					var nackErr ErrNack
+					if errors.As(err, &nackErr) {
 						msg.Nack(false, false)
 						return
 					}
@@ -164,10 +165,11 @@ func (s *Flow) RunConsumer(ctx context.Context, workers int, timeout time.Durati
 						errChan <- err
 					}
 				}
+				msg.Ack(false)
 			}()
 		case <-ctx.Done():
 			wg.Wait()
-			return errors.New("msgs channel closed: " + err.Error())
+			return errors.New("msgs channel closed: " + ctx.Err().Error())
 		case err := <-errChan:
 			wg.Wait()
 			return err
