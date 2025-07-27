@@ -2,6 +2,7 @@ package transport
 
 import (
 	"errors"
+	"time"
 
 	"github.com/rabbitmq/amqp091-go"
 )
@@ -82,18 +83,28 @@ func NewAMTConn(t *MQTransport, Name string, PrefetchCount int) (*AMTConn, error
 }
 
 func (c *AMTConn) Publish(msg []byte) error {
-	return c.Transport.ch.Publish(
-		c.ExchangeName,
-		c.QueueName+"_key",
-		false,
-		false,
-		amqp091.Publishing{
-			DeliveryMode: amqp091.Persistent,
-			ContentType:  "application/json",
-			Body:         msg,
-			Headers:      amqp091.Table{"retry-count": 0}, // Счетчик попыток
-		},
-	)
+	for i := range 3 {
+		err := c.Transport.ch.Publish(
+			c.ExchangeName,
+			c.QueueName+"_key",
+			false,
+			false,
+			amqp091.Publishing{
+				DeliveryMode: amqp091.Persistent,
+				ContentType:  "application/json",
+				Body:         msg,
+				Headers:      amqp091.Table{"retry-count": 0}, // Счетчик попыток
+			},
+		)
+		if err == nil {
+			break
+		}
+		if i == 2 {
+			return err
+		}
+		time.Sleep(2 * time.Second) // подождать 2 секунды, чтобы не перегружать сеть
+	}
+	return nil
 }
 
 func (c *AMTConn) Consume() (<-chan amqp091.Delivery, error) {
