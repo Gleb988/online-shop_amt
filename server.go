@@ -19,7 +19,7 @@ type AppAPI interface {
 }
 
 type AMT interface {
-	Publish(msg []byte) error
+	Publish(context.Context, []byte) error
 	Consume() (<-chan amqp091.Delivery, error)
 	Retry(msg amqp091.Delivery) error
 	Close() error
@@ -156,7 +156,7 @@ func (s *Flow) RunConsumer(ctx context.Context, workers int, timeout time.Durati
 				err := s.App.ProcessMessage(ctx, msg)
 				if err != nil {
 					var nackErr ErrNack
-					if errors.As(err, &nackErr) {
+					if errors.As(err, &nackErr) || errors.Is(err, ctx.Err()) { // errors.Is(err, ctx.Err()) нв всякий случай
 						msg.Nack(false, false)
 						return
 					}

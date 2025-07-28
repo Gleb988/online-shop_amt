@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -82,8 +83,11 @@ func NewAMTConn(t *MQTransport, Name string, PrefetchCount int) (*AMTConn, error
 	return &AMTConn{Transport: t, ExchangeName: ExchangeName, QueueName: QueueName}, nil
 }
 
-func (c *AMTConn) Publish(msg []byte) error {
+func (c *AMTConn) Publish(ctx context.Context, msg []byte) error {
 	for i := range 3 {
+		if ctx.Err() != nil {
+			return errors.New("AMT.Publish: context expired")
+		}
 		err := c.Transport.ch.Publish(
 			c.ExchangeName,
 			c.QueueName+"_key",
@@ -135,22 +139,28 @@ func (c *AMTConn) Retry(msg amqp091.Delivery) error {
 		return nil
 	}
 	msg.Headers["retry-count"] = retries + 1
-	err := c.Transport.ch.Publish(
-		c.ExchangeName,
-		c.QueueName+"_retry_key",
-		false,
-		false,
-		amqp091.Publishing{
-			DeliveryMode: amqp091.Persistent,
-			ContentType:  msg.ContentType,
-			Body:         msg.Body,
-			Headers:      msg.Headers,
-		},
-	)
-	if err != nil {
-		msg.Headers["retry-count"] = -2
-		msg.Nack(false, false)
-		return errors.New("error during publishing to retry queue: " + err.Error())
+	for i := range 3 {
+		err := c.Transport.ch.Publish(
+			c.ExchangeName,
+			c.QueueName+"_retry_key",
+			false,
+			false,
+			amqp091.Publishing{
+				DeliveryMode: amqp091.Persistent,
+				ContentType:  msg.ContentType,
+				Body:         msg.Body,
+				Headers:      msg.Headers,
+			},
+		)
+		if err == nil {
+			break
+		}
+		if i == 2 {
+			msg.Headers["retry-count"] = -2
+			msg.Nack(false, false)
+			return errors.New("error during publishing to retry queue: " + err.Error())
+		}
+		time.Sleep(2 * time.Second) // подождать 2 секунды, чтобы не перегружать сеть
 	}
 	return msg.Ack(false)
 }
